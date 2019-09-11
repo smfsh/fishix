@@ -1,20 +1,22 @@
-mov ah, 0x0e ; teletype mode
-mov al, 'H' ; send ASCII Hex "H" into al register
-int 0x10 ; call screen print interrupt
+[org 0x7c00] ; tell compiler where this program lives in memory
 
-mov al, 'E' ; send ASCII Hex "H" into al register
-int 0x10 ; call screen print interrupt
+mov bx, HELLO
+call print
 
-mov al, 'L' ; send ASCII Hex "H" into al register
-int 0x10 ; call screen print interrupt
+call print_nl
 
-mov al, 'L' ; send ASCII Hex "H" into al register
-int 0x10 ; call screen print interrupt
-
-mov al, 'O' ; send ASCII Hex "H" into al register
-int 0x10 ; call screen print interrupt
+mov bx, GOODBYE
+call print
 
 jmp $ ; jump to current execution pointer, effectively an infinite loop
+
+; include print functions
+%include "boot_sect_print.asm"
+
+HELLO:
+    db 'Hello, World', 0
+GOODBYE:
+    db 'Goodbye', 0
 
 ; Fill with 510 zeros minus the size of the previous code
 times 510-($-$$) db 0
