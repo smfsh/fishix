@@ -22,8 +22,6 @@ done:
     popa
     ret
 
-
-
 print_nl:
     pusha
 
