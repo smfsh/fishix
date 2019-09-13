@@ -16,11 +16,10 @@ call switch_to_pm ;
 
 jmp $ ; this will actually never be executed
 
-%include "storage.asm"
-%include "print_16.asm"
-%include "gdt_32.asm"
-%include "print_32.asm"
-%include "switch_32.asm"
+%include "boot/storage.asm"
+%include "boot/print.asm"
+%include "boot/gdt.asm"
+%include "boot/pm.asm"
 
 bits 16
 load_kernel:
@@ -33,8 +32,8 @@ load_kernel:
     call disk_load
     ret
 
-[bits 32]
-BEGIN_PM: ; Executed after the switch functions in switch_32.asm
+bits 32
+begin_pm: ; Executed after the switch functions in switch_32.asm
     mov ebx, MSG_PROT_MODE
     call print_string_pm ; Print out to the upper left corner
     call KERNEL_OFFSET ; Execute kernel from memory location defined earlier
