@@ -37,7 +37,7 @@ begin_pm: ; Executed after the switch functions in switch_32.asm
     mov ebx, MSG_PROT_MODE
     call print_string_pm ; Print out to the upper left corner
     call KERNEL_OFFSET ; Execute kernel from memory location defined earlier
-    jmp $ ; Chill till we die
+    jmp $ ; Chill til we die
 
 BOOT_DRIVE db 0
 
