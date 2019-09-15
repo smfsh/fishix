@@ -1,79 +1,78 @@
-; 16-bit print operations
-
+; Code for executing print functions using
+; BIOS interrupts while in 16-bit mode
 bits 16
-
 print:
-    pusha
-
-; keep this in mind:
-; while (string[i] != 0) { print string[i]; i++ }
+    pusha ; Save all the registers before we start
 
 ; the comparison for string end (null byte)
 start:
-    mov al, [bx] ; 'bx' is the base address for the string
-    cmp al, 0
-    je done
+    mov al, [bx] ; We set bx before we get here and
+                 ; we set al to the value itself.
+    cmp al, 0 ; Compare to see whether we've hit our
+              ; end-of-string character, 0.
+    je done ; If we have, skip to done
 
-    ; the part where we print with the BIOS help
-    mov ah, 0x0e
-    int 0x10 ; 'al' already contains the char
+    mov ah, 0x0e ; Set ah to 0x0e, the instruction for
+                 ; interrupt 0x10 to print the char
+                 ; set in register al.
+    int 0x10 ; Interrupt and write value of al to the screen
 
-    ; increment pointer and do next loop
-    add bx, 1
-    jmp start
+    add bx, 1 ; Increment bx to the next address
+    jmp start ; Run the loop again
 
 done:
-    popa
+    popa ; Return all the values to the registers
     ret
 
 print_nl:
-    pusha
+    pusha ; Save all the registers before we start
 
-    mov ah, 0x0e
-    mov al, 0x0a ; newline char
-    int 0x10
-    mov al, 0x0d ; carriage return
-    int 0x10
+    mov ah, 0x0e ; Set print mode for interrupt
+    mov al, 0x0a ; Raw line feed (new line) character
+    int 0x10 ; Interrupt and print value of al
+    mov al, 0x0d ; Carriage return character
+    int 0x10 ; Interrupt and print value of al
 
-    popa
+    popa ; Return all the values to the registers
     ret
 
-; receiving the data in 'dx'
-; For the examples we'll assume that we're called with dx=0x1234
 print_hex:
-    pusha
+    pusha ; Save all the registers before we start
 
-    mov cx, 0 ; our index variable
+    mov cx, 0 ; Use a register to store our loop index
 
 ; Strategy: get the last char of 'dx', then convert to ASCII
 ; Numeric ASCII values: '0' (ASCII 0x30) to '9' (0x39), so just add 0x30 to byte N.
 ; For alphabetic characters A-F: 'A' (ASCII 0x41) to 'F' (0x46) we'll add 0x40
 ; Then, move the ASCII byte to the correct position on the resulting string
 hex_loop:
-    cmp cx, 4 ; loop 4 times
-    je end
+    cmp cx, 4 ; Check if we're at the end of our loop, max of 4
+    je end_hex ; If we are, prepare to print
     
-    ; 1. convert last char of 'dx' to ascii
-    mov ax, dx ; we will use 'ax' as our working register
-    and ax, 0x000f ; 0x1234 -> 0x0004 by masking first three to zeros
-    add al, 0x30 ; add 0x30 to N to convert it to ASCII "N"
-    cmp al, 0x39 ; if > 9, add extra 8 to represent 'A' to 'F'
-    jle step2
-    add al, 7 ; 'A' is ASCII 65 instead of 58, so 65-58=7
+    mov ax, dx ; We will use 'ax' as our working register
+    and ax, 0x000f ; We use a bitmask to mask the first three
+                   ; digits to zeros.
+    add al, 0x30 ; Add 0x30 to N to convert it to ASCII "N"
+    cmp al, 0x39 ; Check to see if the value is more than
+                 ; 0x39 which would signify we're A-F and not
+                 ; hex 0-9.
+    jle step2 ; If we're not A-F, continue to step2
+    add al, 7 ; We're a letter so add the needed bits. ASCII
+              ; letters are 17 characters after decimal numbers.
 
 step2:
-    ; 2. get the correct position of the string to place our ASCII char
+    ; Get the correct position of the string to place our ASCII char
     ; bx <- base address + string length - index of char
-    mov bx, HEX_OUT + 5 ; base + length
-    sub bx, cx  ; our index variable
-    mov [bx], al ; copy the ASCII char on 'al' to the position pointed by 'bx'
+    mov bx, HEX_OUT + 5 ; Base address + length
+    sub bx, cx  ; Subtract our index
+    mov [bx], al ; Copy the char on al to the location at bx
     ror dx, 4 ; 0x1234 -> 0x4123 -> 0x3412 -> 0x2341 -> 0x1234
 
     ; increment index and loop
-    add cx, 1
-    jmp hex_loop
+    add cx, 1 ; Increment the index
+    jmp hex_loop ; Start again till we get the whole value
 
-end:
+end_hex:
     ; prepare the parameter and call the function
     ; remember that print receives parameters in 'bx'
     mov bx, HEX_OUT
@@ -86,29 +85,34 @@ HEX_OUT:
     db '0x0000',0 ; reserve memory for our new string
 
 
-; 32-bit print operations
 
-bits 32 ; using 32-bit protected mode
-
+; Code for executing print functions using
+; direct memory manipulation in 32-bit mode
+bits 32
+; Set some values to utilize later
 VIDEO_MEMORY equ 0xb8000
-WHITE_ON_BLACK equ 0x0f ; the color byte for each character
+WHITE_ON_BLACK equ 0x0f ; Color value byte, 16 choices
 
 print_string_pm:
     pusha
-    mov edx, VIDEO_MEMORY
+    mov edx, VIDEO_MEMORY ; Set register edx to the video memory
+                          ; location defined above, 0xb8000. This
+                          ; value is the upper-left most character
+                          ; in a text-mode VGA display.
 
 print_string_pm_loop:
-    mov al, [ebx] ; [ebx] is the address of our character
-    mov ah, WHITE_ON_BLACK
+    mov al, [ebx] ; We set the register ebx earlier, take the value
+                  ; from the address and put it in register al.
+    mov ah, WHITE_ON_BLACK ; Set ah to our byte defining style
 
-    cmp al, 0 ; check if end of string
-    je print_string_pm_done
+    cmp al, 0 ; Check if we've hit our end of line character
+    je print_string_pm_done ; If we have, we're done with this string
 
-    mov [edx], ax ; store character + attribute in video memory
-    add ebx, 1 ; next char
-    add edx, 2 ; next video memory position
+    mov [edx], ax ; Put entire ax register (2 bytes) into the address at edx
+    add ebx, 1 ; Increment the ebx pointer so we find the next char in our string
+    add edx, 2 ; Increment the edx pointer so we move to the next cursor position
 
-    jmp print_string_pm_loop
+    jmp print_string_pm_loop ; Loop till we're done
 
 print_string_pm_done:
     popa

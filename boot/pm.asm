@@ -1,22 +1,34 @@
 bits 16
 switch_to_pm:
-    cli ; 1. disable interrupts
-    lgdt [gdt_descriptor] ; 2. load the GDT descriptor
-    mov eax, cr0
-    or eax, 0x1 ; 3. set 32-bit mode bit in cr0
-    mov cr0, eax
-    jmp CODE_SEG:init_pm ; 4. far jump by using a different segment
+    cli ; Disable all the interrupts set earlier
+        ; by the BIOS. These will conflict in our
+        ; 32-bit operating mode.
+    lgdt [gdt_descriptor] ; Tell the CPU about the GDT
+
+    mov eax, cr0 ; Grab the current value of cr0, a control register
+    or eax, 0x1  ; Update the first bit to 1
+    mov cr0, eax ; Set the control register to the updated value
+
+    ; We're quasi in 32-bit operation mode at this point
+    ; but it's possible the CPU still has instructions somewhere
+    ; in it that are 16-bit. We want these to finish before moving
+    ; on so we execute what's called a far jump. This is done by
+    ; declaring a (far) segment and offset.
+    jmp CODE_SEG:init_pm ; Perform the actual far jump
+    ; During the jump, the code segment, cs, is updated
+    ; appropriately, and automatically. We apply the offset
+    ; that we set at CODE_SEG and arrive where we need to be.
 
 bits 32
-init_pm: ; we are now using 32-bit instructions
-    mov ax, DATA_SEG ; 5. update the segment registers
-    mov ds, ax
-    mov ss, ax
-    mov es, ax
+init_pm: ; We're now officially in 32-bit mode
+    mov ax, DATA_SEG ; Now that we're here, we should update
+    mov ds, ax       ; all additional segments to make sure
+    mov ss, ax       ; they're aware of where the GDT has them
+    mov es, ax       ; mapped for this mode.
     mov fs, ax
     mov gs, ax
 
-    mov ebp, 0x90000 ; 6. update the stack right at the top of the free space
-    mov esp, ebp
+    mov ebp, 0x90000 ; We update our stack positions as well
+    mov esp, ebp     ; now that we have all this free space.
 
-    call begin_pm ; 7. Call a well-known label with useful code
+    call begin_pm ; Begin to execute code in 32-bit space, back at boot.asm
